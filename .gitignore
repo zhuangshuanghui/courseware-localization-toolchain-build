@@ -1,0 +1,6 @@
+*.dist/
+*.build/
+*.onefile-build/
+*.exe
+deps.txt
+server_web.py
