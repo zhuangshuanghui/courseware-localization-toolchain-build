@@ -153,7 +153,7 @@ def should_skip(src: Path, out: Path) -> bool:
 
 
 def clean_build_dir(full: bool = True):
-    PROTECTED = {"build.py", "build_nuitka.py", "build.bat", "encrypt.bat", "deps.txt"}
+    PROTECTED = {"build.py", "build_nuitka.py", "build.bat", "encrypt.bat", "deps.txt", "server.dist"}
     for item in list(ROOT.iterdir()):
         if item.name in PROTECTED:
             continue
@@ -197,16 +197,27 @@ def compile_all():
         out = ROOT / f"{name}.exe"
 
         if should_skip(src, out):
-            print(f"  [{i}/{total}] SKIP (up-to-date): {script}")
-            skipped += 1
-            continue
+            # server 用 standalone，额外检查 server.dist/
+            if script == "server_web.py":
+                server_dist = ROOT / "server.dist"
+                if not server_dist.exists():
+                    pass  # 继续编译，不跳过
+                else:
+                    print(f"  [{i}/{total}] SKIP (up-to-date): {script}")
+                    skipped += 1
+                    continue
+            else:
+                print(f"  [{i}/{total}] SKIP (up-to-date): {script}")
+                skipped += 1
+                continue
 
         compiled += 1
         print(f"  [{i}/{total}] {script} -> {name}.exe", flush=True)
 
         cmd = [sys.executable, "-m", "nuitka"]
         cmd += ["--assume-yes-for-downloads"]
-        cmd += ["--onefile"]
+        # server 用 standalone（Nuitka 4.1.2 onefile 有 bug）
+        cmd += ["--standalone" if script_type == "server" else "--onefile"]
         cmd += ["--output-dir=" + str(ROOT)]
         cmd += ["--jobs=4"]
 
@@ -234,12 +245,18 @@ def compile_all():
         if result.returncode != 0:
             print(f"  [FAIL] {script}")
             failed.append(script)
-        elif script == "server_web.py" and not out.exists():
-            # Nuitka 输出 server_web.exe，重命名为 server.exe
-            web_out = ROOT / "server_web.exe"
-            if web_out.exists():
-                web_out.rename(out)
-                print(f"  [OK] 重命名: server_web.exe -> server.exe")
+        elif script == "server_web.py":
+            # standalone 模式：从 server_web.dist/ 复制 exe 并重命名为 server.exe
+            dist_exe = ROOT / "server_web.dist" / "server_web.exe"
+            if dist_exe.exists():
+                # 复制整个 dist 目录为 server.dist
+                server_dist = ROOT / "server.dist"
+                if server_dist.exists():
+                    shutil.rmtree(server_dist)
+                shutil.copytree(ROOT / "server_web.dist", server_dist)
+                # 在 build/ 根放置 server.exe（复制品）
+                shutil.copy2(dist_exe, out)
+                print(f"  [OK] 部署: server_web.dist -> server.dist + server.exe")
 
     print(f"\n  统计: 编译 {compiled}, 跳过 {skipped}, 失败 {len(failed)}")
     return failed
@@ -299,8 +316,8 @@ def create_server_launcher():
         'set "PYTHONIOENCODING=utf-8"',
         'set "PYTHONUNBUFFERED=1"',
         "",
-        'if not exist "%ROOT%server.exe" (',
-        "    echo [ERROR] server.exe not found, please re-run build.bat",
+        'if not exist "%ROOT%server.dist\server.exe" (',
+        "    echo [ERROR] server.dist\\server.exe not found, please re-run build.bat",
         "    pause",
         "    exit /b 1",
         ")",
@@ -308,7 +325,7 @@ def create_server_launcher():
         'echo 服务启动: http://localhost:8765',
         'echo 浏览器打开上面的地址即可使用',
         'echo.',
-        '"%ROOT%server.exe"',
+        '"%ROOT%server.dist\server.exe"',
     ]
     with open(ROOT / "启动服务.bat", "w", encoding="utf-8", newline="\r\n") as f:
         f.write("chcp 65001 >nul\n")
