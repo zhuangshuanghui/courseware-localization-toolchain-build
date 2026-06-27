@@ -316,7 +316,7 @@ def create_server_launcher():
         'set "PYTHONIOENCODING=utf-8"',
         'set "PYTHONUNBUFFERED=1"',
         "",
-        'if not exist "%ROOT%server.dist\server.exe" (',
+        'if not exist "%ROOT%server.dist\\server.exe" (',
         "    echo [ERROR] server.dist\\server.exe not found, please re-run build.bat",
         "    pause",
         "    exit /b 1",
@@ -325,7 +325,7 @@ def create_server_launcher():
         'echo 服务启动: http://localhost:8765',
         'echo 浏览器打开上面的地址即可使用',
         'echo.',
-        '"%ROOT%server.dist\server.exe"',
+        '"%ROOT%server.dist\\server.exe"',
     ]
     with open(ROOT / "启动服务.bat", "w", encoding="utf-8", newline="\r\n") as f:
         f.write("chcp 65001 >nul\n")
